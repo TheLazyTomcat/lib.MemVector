@@ -42,7 +42,7 @@ type
     Function EndChanging: Integer; virtual;
     Function LowIndex: Integer; virtual;
     Function HighIndex: Integer; virtual;
-    Function Firts: Pointer; virtual;
+    Function First: Pointer; virtual;
     Function Last: Pointer; virtual;
     Function Grow(Force: Boolean = False): Integer; virtual;
     Function Shrink: Integer; virtual;
@@ -59,10 +59,10 @@ type
     procedure Sort(Reversed: Boolean = False); virtual;
     Function Equals(Vector: TMemVector): Boolean; virtual;
     Function EqualsBinary(Vector: TMemVector): Boolean; virtual;
-    procedure Assign(Data: Pointer; Count: Integer; AsCopy: Boolean = False); overload; virtual;
-    procedure Assign(Vector: TMemVector; AsCopy: Boolean = False); overload; virtual;
-    procedure Append(Data: Pointer; Count: Integer; AsCopy: Boolean = False); overload; virtual;
-    procedure Append(Vector: TMemVector; AsCopy: Boolean = False); overload; virtual;
+    procedure Assign(Data: Pointer; Count: Integer; ManagedCopy: Boolean = False); overload; virtual;
+    procedure Assign(Vector: TMemVector; ManagedCopy: Boolean = False); overload; virtual;
+    procedure Append(Data: Pointer; Count: Integer; ManagedCopy: Boolean = False); overload; virtual;
+    procedure Append(Vector: TMemVector; ManagedCopy: Boolean = False); overload; virtual;
     procedure SaveToStream(Stream: TStream); virtual;
     procedure LoadFromStream(Stream: TStream); virtual;
     procedure SaveToFile(const FileName: String); virtual;
@@ -79,6 +79,27 @@ type
     property OnChange: TNotifyEvent read fOnChange write fOnChange;
   end;
 
+  TIntegerVector = class(TMemVector)
+  protected
+    Function GetItem(Index: Integer): Integer; reintroduce;
+    procedure SetItem(Index: Integer; Value: Integer); reintroduce;
+  //procedure ItemInit(ItemPtr: Pointer); virtual;
+  //procedure ItemFinal(ItemPtr: Pointer); virtual;
+  //procedure ItemCopy(SrcItem,DstItem: Pointer); virtual;
+    Function ItemCompare(Item1,Item2: Pointer): Integer; override;
+  //Function ItemEqual(Item1,Item2: Pointer): Boolean; virtual;
+  public
+    constructor Create;
+    Function First: Integer; reintroduce;
+    Function Last: Integer; reintroduce;
+    Function IndexOf(Item: Integer): Integer; reintroduce;
+    Function Add(Item: Integer): Integer; reintroduce;
+    procedure Insert(Index: Integer; Item: Integer); reintroduce;
+    Function Remove(Item: Integer): Integer; reintroduce;
+    Function Extract(Item: Integer): Integer; reintroduce;
+    property Items[Index: Integer]: Integer read GetItem write SetItem; default;
+  end;
+
 implementation
 
 uses
@@ -89,13 +110,17 @@ begin
 If CheckIndex(Index) then
   Result := Pointer(PtrUInt(fMemory) + PtrUInt(Index * fItemSize))
 else
-  raise Exception.CreateFmt('TMemVector.GetItemBase: Index (%d) out of bounds.',[Index]);
+  raise Exception.CreateFmt('TMemVector.GetItemPtr: Index (%d) out of bounds.',[Index]);
 end;
 
 //------------------------------------------------------------------------------
 
 procedure TMemVector.SetItemPtr(Index: Integer; Value: Pointer);
 begin
+If CheckIndex(Index) then
+  System.Move(Value^,GetItemPtr(Index)^,fItemSize)
+else
+  raise Exception.CreateFmt('TMemVector.SetItemPtr: Index (%d) out of bounds.',[Index]);
 end;
 
 //------------------------------------------------------------------------------
@@ -304,7 +329,7 @@ end;
 
 //------------------------------------------------------------------------------
 
-Function TMemVector.Firts: Pointer;
+Function TMemVector.First: Pointer;
 begin
 Result := GetItemPtr(LowIndex);
 end;
@@ -599,7 +624,7 @@ end;
 
 //------------------------------------------------------------------------------
 
-procedure TMemVector.Assign(Data: Pointer; Count: Integer; AsCopy: Boolean = False);
+procedure TMemVector.Assign(Data: Pointer; Count: Integer; ManagedCopy: Boolean = False);
 var
   i:  Integer;
 begin
@@ -610,7 +635,7 @@ If fOwnsMemory then
       SetCapacity(Count);
       fCount := Count;
       FinalizeAllItems;      
-      If AsCopy then
+      If ManagedCopy then
         For i := 0 to Pred(Count) do
           ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr(i))
       else
@@ -625,12 +650,12 @@ end;
 
 //------------------------------------------------------------------------------
 
-procedure TMemVector.Assign(Vector: TMemVector; AsCopy: Boolean = False);
+procedure TMemVector.Assign(Vector: TMemVector; ManagedCopy: Boolean = False);
 begin
 If fOwnsMemory then
   begin
     If Vector is Self.ClassType then
-      Assign(Vector.Memory,Vector.Count,AsCopy)
+      Assign(Vector.Memory,Vector.Count,ManagedCopy)
     else
       raise Exception.CreateFmt('TMemVector.Assign: Object is of incompatible class (%s).',[Vector.ClassName]);
   end
@@ -639,7 +664,7 @@ end;
 
 //------------------------------------------------------------------------------
 
-procedure TMemVector.Append(Data: Pointer; Count: Integer; AsCopy: Boolean = False);
+procedure TMemVector.Append(Data: Pointer; Count: Integer; ManagedCopy: Boolean = False);
 var
   i:  Integer;
 begin
@@ -650,7 +675,7 @@ If fOwnsMemory then
       If (fCount + Count) > fCapacity then
         SetCapacity(fCount + Count);
       fCount := fCount + Count;
-      If AsCopy then
+      If ManagedCopy then
         For i := 0 to Pred(Count) do
           ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr((fCount - Count) + i))
       else
@@ -665,12 +690,12 @@ end;
 
 //------------------------------------------------------------------------------
 
-procedure TMemVector.Append(Vector: TMemVector; AsCopy: Boolean = False);
+procedure TMemVector.Append(Vector: TMemVector; ManagedCopy: Boolean = False);
 begin
 If fOwnsMemory then
   begin
     If Vector is Self.ClassType then
-      Append(Vector.Memory,Vector.Count,AsCopy)
+      Append(Vector.Memory,Vector.Count,ManagedCopy)
     else
       raise Exception.CreateFmt('TMemVector.Append: Object is of incompatible class (%s).',[Vector.ClassName]);
   end
@@ -730,6 +755,85 @@ try
 finally
   FileStream.Free;
 end;
+end;
+
+//------------------------------------------------------------------------------
+//==============================================================================
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.GetItem(Index: Integer): Integer;
+begin
+Result := Integer(GetItemPtr(Index)^);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TIntegerVector.SetItem(Index: Integer; Value: Integer);
+begin
+Integer(GetItemPtr(Index)^) := Value;
+end;
+
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.ItemCompare(Item1,Item2: Pointer): Integer;
+begin
+Result := Integer(Item2^) - Integer(Item1^);
+end;
+
+//==============================================================================
+
+constructor TIntegerVector.Create;
+begin
+inherited Create(SizeOf(Integer));
+end;
+
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.First: Integer;
+begin
+Result := Integer(inherited First^);
+end;
+
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.Last: Integer;
+begin
+Result := Integer(inherited Last^);
+end;
+
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.IndexOf(Item: Integer): Integer;
+begin
+Result := inherited IndexOf(@Item);
+end;
+
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.Add(Item: Integer): Integer;
+begin
+Result := inherited Add(@Item);
+end;
+  
+//------------------------------------------------------------------------------
+
+procedure TIntegerVector.Insert(Index: Integer; Item: Integer);
+begin
+inherited Insert(Index,@Item);
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.Remove(Item: Integer): Integer;
+begin
+Result := inherited Remove(@Item);
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function TIntegerVector.Extract(Item: Integer): Integer;
+begin
+Result := Integer(inherited Extract(@Item)^);
 end;
 
 end.
