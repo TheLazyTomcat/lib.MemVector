@@ -2,6 +2,10 @@ unit MemVector;
 
 interface
 
+{$IFDEF FPC}
+  {$MODE Delphi}
+{$ENDIF}
+
 uses
   Classes, AuxTypes;
 
@@ -20,16 +24,14 @@ type
     fTempItem:    Pointer;
     Function GetItemPtr(Index: Integer): Pointer; virtual;
     procedure SetItemPtr(Index: Integer; Value: Pointer); virtual;
-    procedure GetItem; virtual; abstract;
-    procedure SetItem; virtual; abstract;
     Function CheckIndex(Index: Integer; RaiseException: Boolean = False; MethodName: String = 'CheckIndex'): Boolean; virtual;
     Function GetNextItemPtr(ItemPtr: Pointer): Pointer; virtual;
     procedure SetCapacity(Value: Integer); virtual;
     procedure SetCount(Value: Integer); virtual;
     Function GetSize: TMemSize; virtual;
     Function GetAllocatedSize: TMemSize; virtual;
-    procedure ItemInit(ItemPtr: Pointer); virtual;
-    procedure ItemFinal(ItemPtr: Pointer); virtual;
+    procedure ItemInit(Item: Pointer); virtual;
+    procedure ItemFinal({%H-}Item: Pointer); virtual;
     procedure ItemCopy(SrcItem,DstItem: Pointer); virtual;
     Function ItemCompare(Item1,Item2: Pointer): Integer; virtual;
     Function ItemEqual(Item1,Item2: Pointer): Boolean; virtual;
@@ -57,7 +59,7 @@ type
     procedure Reverse; virtual;
     procedure Clear; virtual;
     procedure Sort(Reversed: Boolean = False); virtual;
-    Function Equals(Vector: TMemVector): Boolean; virtual;
+    Function Equals(Vector: TMemVector): Boolean; overload; virtual;
     Function EqualsBinary(Vector: TMemVector): Boolean; virtual;
     procedure Assign(Data: Pointer; Count: Integer; ManagedCopy: Boolean = False); overload; virtual;
     procedure Assign(Vector: TMemVector; ManagedCopy: Boolean = False); overload; virtual;
@@ -81,13 +83,13 @@ type
 
   TIntegerVector = class(TMemVector)
   protected
-    Function GetItem(Index: Integer): Integer; reintroduce;
-    procedure SetItem(Index: Integer; Value: Integer); reintroduce;
-  //procedure ItemInit(ItemPtr: Pointer); virtual;
-  //procedure ItemFinal(ItemPtr: Pointer); virtual;
-  //procedure ItemCopy(SrcItem,DstItem: Pointer); virtual;
+    Function GetItem(Index: Integer): Integer; virtual;
+    procedure SetItem(Index: Integer; Value: Integer); virtual;
+  //procedure ItemInit(ItemPtr: Pointer); override;
+  //procedure ItemFinal(ItemPtr: Pointer); override;
+  //procedure ItemCopy(SrcItem,DstItem: Pointer); override;
     Function ItemCompare(Item1,Item2: Pointer): Integer; override;
-  //Function ItemEqual(Item1,Item2: Pointer): Boolean; virtual;
+  //Function ItemEqual(Item1,Item2: Pointer): Boolean; override;
   public
     constructor Create;
     Function First: Integer; reintroduce;
@@ -108,7 +110,7 @@ uses
 Function TMemVector.GetItemPtr(Index: Integer): Pointer;
 begin
 If CheckIndex(Index) then
-  Result := Pointer(PtrUInt(fMemory) + PtrUInt(Index * fItemSize))
+  Result := {%H-}Pointer({%H-}PtrUInt(fMemory) + PtrUInt(Index * fItemSize))
 else
   raise Exception.CreateFmt('TMemVector.GetItemPtr: Index (%d) out of bounds.',[Index]);
 end;
@@ -118,7 +120,11 @@ end;
 procedure TMemVector.SetItemPtr(Index: Integer; Value: Pointer);
 begin
 If CheckIndex(Index) then
-  System.Move(Value^,GetItemPtr(Index)^,fItemSize)
+  begin
+    System.Move(GetItemPtr(Index)^,fTempItem^,fItemSize);
+    System.Move(Value^,GetItemPtr(Index)^,fItemSize);
+    If not ItemEqual(fTempItem,Value) then DoOnChange;
+  end
 else
   raise Exception.CreateFmt('TMemVector.SetItemPtr: Index (%d) out of bounds.',[Index]);
 end;
@@ -136,7 +142,7 @@ end;
 
 Function TMemVector.GetNextItemPtr(ItemPtr: Pointer): Pointer;
 begin
-Result := Pointer(PtrUInt(ItemPtr) + PtrUInt(fItemSize));
+Result := {%H-}Pointer({%H-}PtrUInt(ItemPtr) + PtrUInt(fItemSize));
 end;
 
 //------------------------------------------------------------------------------
@@ -153,7 +159,11 @@ If fOwnsMemory then
           For i := Value to Pred(fCount) do ItemFinal(GetItemPtr(i));
         ReallocMem(fMemory,TMemSize(Value) * TMemSize(fItemSize));
         fCapacity := Value;
-        DoOnChange;
+        If Value < fCount then
+          begin
+            fCount := Value;
+            DoOnChange;
+          end;
       end;
   end
 else raise Exception.Create('TMemVector.SetCapacity: Operation not allowed for not owned memory.');
@@ -211,14 +221,14 @@ end;
 
 //------------------------------------------------------------------------------
 
-procedure TMemVector.ItemInit(ItemPtr: Pointer);
+procedure TMemVector.ItemInit(Item: Pointer);
 begin
-FillChar(ItemPtr^,fItemSize,0);
+FillChar(Item^,fItemSize,0);
 end;
 
 //------------------------------------------------------------------------------
 
-procedure TMemVector.ItemFinal(ItemPtr: Pointer);
+procedure TMemVector.ItemFinal(Item: Pointer);
 begin
 // nothing to do here
 end;
@@ -234,7 +244,7 @@ end;
 
 Function TMemVector.ItemCompare(Item1,Item2: Pointer): Integer;
 begin
-Result := Integer(PtrInt(Item2) - PtrInt(Item1));
+Result := Integer({%H-}PtrUInt(Item2) - {%H-}PtrUInt(Item1));
 end;
 
 //------------------------------------------------------------------------------
@@ -271,7 +281,7 @@ If ItemSize <= 0 then
   raise Exception.Create('TMemVector.Create: Size of the item must be larger than zero.');
 fItemSize := ItemSize;
 fMemory := nil;
-fOwnsMemory := False;
+fOwnsMemory := True;
 fCapacity := 0;
 fCount := 0;
 fChanging := 0;
@@ -557,13 +567,13 @@ procedure TMemVector.Sort(Reversed: Boolean = False);
     Pivot:  Pointer;
     Idx,i:  Integer;
   begin
-    If Left < right  then
+    If Left < Right  then
       begin
         Exchange((Left + Right) shr 1,Right);
         Pivot := GetItemPtr(Right);
         Idx := Left;
         For i := Left to Pred(Right) do
-          If (ItemCompare(GetItemPtr(i),Pivot) * Coef) < 0 then
+          If (ItemCompare(Pivot,GetItemPtr(i)) * Coef) < 0 then
             begin
               Exchange(i,idx);
               Inc(Idx);
@@ -580,8 +590,8 @@ If fCount > 1 then
     BeginChanging;
     try
       If Reversed then QuickSort(0,Pred(fCount),-1)
-        else QuickSort(0,Pred(fCount),0);
-       DoOnChange; 
+        else QuickSort(0,Pred(fCount),1);
+      DoOnChange;
     finally
       EndChanging;
     end;
@@ -617,7 +627,7 @@ Result := False;
 If Size = Vector.Size then
   begin
     For i := 0 to Pred(Size) do
-      If PByte(PtrUInt(fMemory) + i)^ <> PByte(PtrUInt(Vector.Memory) + i)^ then Exit;
+      If {%H-}PByte({%H-}PtrUInt(fMemory) + i)^ <> {%H-}PByte({%H-}PtrUInt(Vector.Memory) + i)^ then Exit;
     Result := True;
   end;
 end;
@@ -632,12 +642,13 @@ If fOwnsMemory then
   begin
     BeginChanging;
     try
+      FinalizeAllItems;
+      fCount := 0;
       SetCapacity(Count);
       fCount := Count;
-      FinalizeAllItems;      
       If ManagedCopy then
         For i := 0 to Pred(Count) do
-          ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr(i))
+          ItemCopy({%H-}Pointer({%H-}PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr(i))
       else
         System.Move(Data^,fMemory^,Count * fItemSize);
       DoOnChange;
@@ -677,7 +688,7 @@ If fOwnsMemory then
       fCount := fCount + Count;
       If ManagedCopy then
         For i := 0 to Pred(Count) do
-          ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr((fCount - Count) + i))
+          ItemCopy({%H-}Pointer({%H-}PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr((fCount - Count) + i))
       else
         System.Move(Data^,GetItemPtr(fCount - Count)^,Count * fItemSize);
       DoOnChange;
@@ -717,9 +728,10 @@ If fOwnsMemory then
   begin
     BeginChanging;
     try
+      FinalizeAllItems;
+      fCount := 0;
       SetCapacity(Integer((Stream.Size - Stream.Position) div fItemSize));
       fCount := fCapacity;
-      FinalizeAllItems;      
       Stream.ReadBuffer(fMemory^,fCount * fItemSize);
       DoOnChange;
     finally
@@ -770,7 +782,7 @@ end;
 
 procedure TIntegerVector.SetItem(Index: Integer; Value: Integer);
 begin
-Integer(GetItemPtr(Index)^) := Value;
+SetItemPtr(Index,@Value);
 end;
 
 //------------------------------------------------------------------------------
