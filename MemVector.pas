@@ -1,3 +1,19 @@
+{-------------------------------------------------------------------------------
+
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+-------------------------------------------------------------------------------}
+{===============================================================================
+
+  Memory vector classes
+
+  ©František Milt 2016-01-09
+
+  Version 1.0
+
+===============================================================================}
 unit MemVector;
 
 interface
@@ -10,6 +26,12 @@ uses
   Classes, AuxTypes;
 
 type
+{==============================================================================}
+{------------------------------------------------------------------------------}
+{                           TMemVector - declaration                           }
+{------------------------------------------------------------------------------}
+{==============================================================================}
+
   TMemVector = class(TObject)
   private
     fItemSize:    Integer;
@@ -38,7 +60,8 @@ type
     procedure FinalizeAllItems; virtual;
     procedure DoOnChange; virtual;
   public
-    constructor Create(ItemSize: Integer);
+    constructor Create(ItemSize: Integer); overload;
+    constructor Create(Memory: Pointer; Count: Integer; ItemSize: Integer); overload;
     destructor Destroy; override;
     procedure BeginChanging; virtual;
     Function EndChanging: Integer; virtual;
@@ -81,6 +104,12 @@ type
     property OnChange: TNotifyEvent read fOnChange write fOnChange;
   end;
 
+{==============================================================================}
+{------------------------------------------------------------------------------}
+{                         TIntegerVector - declaration                         }
+{------------------------------------------------------------------------------}
+{==============================================================================}
+
   TIntegerVector = class(TMemVector)
   protected
     Function GetItem(Index: Integer): Integer; virtual;
@@ -91,7 +120,8 @@ type
     Function ItemCompare(Item1,Item2: Pointer): Integer; override;
   //Function ItemEqual(Item1,Item2: Pointer): Boolean; override;
   public
-    constructor Create;
+    constructor Create; overload;
+    constructor Create(Memory: Pointer; Count: Integer); overload;
     Function First: Integer; reintroduce;
     Function Last: Integer; reintroduce;
     Function IndexOf(Item: Integer): Integer; reintroduce;
@@ -106,6 +136,16 @@ implementation
 
 uses
   SysUtils;
+
+{==============================================================================}
+{------------------------------------------------------------------------------}
+{                         TMemVector - implementation                          }
+{------------------------------------------------------------------------------}
+{==============================================================================}
+
+{==============================================================================}
+{   TMemVector - protected methods                                             }
+{==============================================================================}
 
 Function TMemVector.GetItemPtr(Index: Integer): Pointer;
 begin
@@ -272,7 +312,9 @@ fChanged := True;
 If (fChanging <= 0) and Assigned(fOnChange) then fOnChange(Self);
 end;
 
-//==============================================================================
+{==============================================================================}
+{   TMemVector - public methods                                                }
+{==============================================================================}
 
 constructor TMemVector.Create(ItemSize: Integer);
 begin
@@ -287,6 +329,16 @@ fCount := 0;
 fChanging := 0;
 fChanged := False;
 GetMem(fTempItem,ItemSize);
+end;
+
+//   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---
+
+constructor TMemVector.Create(Memory: Pointer; Count: Integer; ItemSize: Integer);
+begin
+Create(ItemSize);
+fMemory := Memory;
+fOwnsMemory := False;
+fCount := Count;
 end;
 
 //------------------------------------------------------------------------------
@@ -548,14 +600,21 @@ end;
 //------------------------------------------------------------------------------
 
 procedure TMemVector.Clear;
+var
+  OldCount: Integer;
 begin
+OldCount := fCount;
 If fOwnsMemory then
   begin
     FinalizeAllItems;
     fCount := 0;
-    DoOnChange;
   end
-else raise Exception.Create('TMemVector.Clear: Operation not allowed for not owned memory.');
+else
+  begin
+    fCount := 0;
+    fMemory := nil;
+  end;
+If OldCount > 0 then DoOnChange;
 end;
 
 //------------------------------------------------------------------------------
@@ -769,9 +828,16 @@ finally
 end;
 end;
 
-//------------------------------------------------------------------------------
-//==============================================================================
-//------------------------------------------------------------------------------
+
+{==============================================================================}
+{------------------------------------------------------------------------------}
+{                        TIntegerVector - implementation                       }
+{------------------------------------------------------------------------------}
+{==============================================================================}
+
+{==============================================================================}
+{   TIntegerVector - protected methods                                         }
+{==============================================================================}
 
 Function TIntegerVector.GetItem(Index: Integer): Integer;
 begin
@@ -792,11 +858,20 @@ begin
 Result := Integer(Item2^) - Integer(Item1^);
 end;
 
-//==============================================================================
+{==============================================================================}
+{   TIntegerVector - public methods                                            }
+{==============================================================================}
 
 constructor TIntegerVector.Create;
 begin
 inherited Create(SizeOf(Integer));
+end;
+
+//   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---
+
+constructor TIntegerVector.Create(Memory: Pointer; Count: Integer);
+begin
+inherited Create(Memory,Count,SizeOf(Integer));
 end;
 
 //------------------------------------------------------------------------------
