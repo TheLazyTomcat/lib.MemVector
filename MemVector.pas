@@ -14,6 +14,182 @@
   Version 1.0
 
 ===============================================================================}
+(*******************************************************************************
+
+  Not implemented as generic class mainly because of backward compatibility. To
+  create a derived/specialized class from base class, replace @ClassName@ with a
+  class identifier and @Type@ with identifier of used type in the following
+  template. Also remember to implement proper comparison function for a chosen
+  type.
+  Optional methods are not required to be implemented, but they might be usefull
+  in some instances (eg. when item contains reference-counted types, pointers
+  or object references).
+
+==  Declaration  ===============================================================
+--------------------------------------------------------------------------------
+
+  @ClassName@ = class(TMemVector)
+  protected
+    Function GetItem(Index: Integer): @Type@; virtual;
+    procedure SetItem(Index: Integer; Value: @Type@); virtual;
+  //procedure ItemInit(ItemPtr: Pointer); override;
+  //procedure ItemFinal(ItemPtr: Pointer); override;
+  //procedure ItemCopy(SrcItem,DstItem: Pointer); override;           
+    Function ItemCompare(Item1,Item2: Pointer): Integer; override;
+  //Function ItemEqual(Item1,Item2: Pointer): Boolean; override;
+  public
+    constructor Create; overload;
+    constructor Create(Memory: Pointer; Count: Integer); overload;
+    Function First: @Type@; reintroduce;
+    Function Last: @Type@; reintroduce;
+    Function IndexOf(Item: @Type@): Integer; reintroduce;
+    Function Add(Item: @Type@): Integer; reintroduce;
+    procedure Insert(Index: Integer; Item: @Type@); reintroduce;
+    Function Remove(Item: @Type@): Integer; reintroduce;
+    Function Extract(Item: @Type@): @Type@; reintroduce;
+    property Items[Index: Integer]: @Type@ read GetItem write SetItem; default;
+  end;
+
+==  Implementation  ============================================================
+--------------------------------------------------------------------------------
+
+Function @ClassName@.GetItem(Index: Integer): @Type@;
+begin
+Result := @Type@(GetItemPtr(Index)^);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure @ClassName@.SetItem(Index: Integer; Value: @Type@);
+begin
+SetItemPtr(Index,@Value);
+end;
+
+//------------------------------------------------------------------------------
+
+// Method called for each item that is implicitly (eg. when changing the Count
+// property to a higher number) added to the vector.
+// Item is filled with zeroes in default implementation.
+
+//procedure @ClassName@.ItemInit(ItemPtr: Pointer); override;
+//begin
+//{$MESSAGE WARN 'Implement item initialization to suit actual type.'}
+//end;
+
+//------------------------------------------------------------------------------
+
+// Method called for each item that is implicitly (e.g. when changing the Count
+// property to a lower number) removed from the vector.
+// No default behavior.
+
+//procedure @ClassName@.ItemFinal(ItemPtr: Pointer); override;
+//begin
+//{$MESSAGE WARN 'Implement item finalization to suit actual type.'}
+//end;
+
+//------------------------------------------------------------------------------
+
+// Called when an item is copied to the vector from an external source and
+// ManagedCopy is set to true. Called only by methods that has parameter
+// ManagedCopy.
+// Item is copied without any further processing in default implementation.
+
+//procedure @ClassName@.ItemCopy(SrcItem,DstItem: Pointer); override;
+//begin
+//{$MESSAGE WARN 'Implement item copy to suit actual type.'}
+//end;
+
+//------------------------------------------------------------------------------
+
+
+// This method is called when there is a need to compare two items, for example
+// when sorting the vector.
+// Must return negative number when Item1 is higher/larger than Item2, zero when
+// they are equal and positive number when Item1 is lower/smaller than Item2.
+// No default implementation.
+// This method must be implemented in derived classes!
+
+Function @ClassName@.ItemCompare(Item1,Item2: Pointer): Integer;
+begin
+{$MESSAGE WARN 'Implement comparison to suit actual type.'}
+end;
+
+//------------------------------------------------------------------------------
+
+// Called when two items are compared for equality (e.g. when searching for a
+// particular item).
+// In default implementation, it calls ItemCompare and when it returns zero,
+// items are considered to be equal.
+
+//Function @ClassName@.ItemEqual(Item1,Item2: Pointer): Boolean; override;
+//begin
+//{$MESSAGE WARN 'Implement equality comparison to suit actual type.'}
+//end;
+
+//==============================================================================
+
+constructor @ClassName@.Create;
+begin
+inherited Create(SizeOf(@Type@));
+end;
+
+//   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---   ---
+
+constructor @ClassName@.Create(Memory: Pointer; Count: Integer);
+begin
+inherited Create(Memory,Count,SizeOf(@Type@));
+end;
+
+//------------------------------------------------------------------------------
+
+Function @ClassName@.First: @Type@;
+begin
+Result := @Type@(inherited First^);
+end;
+
+//------------------------------------------------------------------------------
+
+Function @ClassName@.Last: @Type@;
+begin
+Result := @Type@(inherited Last^);
+end;
+
+//------------------------------------------------------------------------------
+
+Function @ClassName@.IndexOf(Item: @Type@): Integer;
+begin
+Result := inherited IndexOf(@Item);
+end;
+
+//------------------------------------------------------------------------------
+
+Function @ClassName@.Add(Item: @Type@): Integer;
+begin
+Result := inherited Add(@Item);
+end;
+  
+//------------------------------------------------------------------------------
+
+procedure @ClassName@.Insert(Index: Integer; Item: @Type@);
+begin
+inherited Insert(Index,@Item);
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function @ClassName@.Remove(Item: @Type@): Integer;
+begin
+Result := inherited Remove(@Item);
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function @ClassName@.Extract(Item: @Type@): @Type@;
+begin
+Result := @Type@(inherited Extract(@Item)^);
+end;
+
+*******************************************************************************)
 unit MemVector;
 
 interface
@@ -114,11 +290,7 @@ type
   protected
     Function GetItem(Index: Integer): Integer; virtual;
     procedure SetItem(Index: Integer; Value: Integer); virtual;
-  //procedure ItemInit(ItemPtr: Pointer); override;
-  //procedure ItemFinal(ItemPtr: Pointer); override;
-  //procedure ItemCopy(SrcItem,DstItem: Pointer); override;
     Function ItemCompare(Item1,Item2: Pointer): Integer; override;
-  //Function ItemEqual(Item1,Item2: Pointer): Boolean; override;
   public
     constructor Create; overload;
     constructor Create(Memory: Pointer; Count: Integer); overload;
