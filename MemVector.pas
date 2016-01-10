@@ -36,7 +36,7 @@
   //procedure ItemFinal(ItemPtr: Pointer); override;
   //procedure ItemCopy(SrcItem,DstItem: Pointer); override;           
     Function ItemCompare(Item1,Item2: Pointer): Integer; override;
-  //Function ItemEqual(Item1,Item2: Pointer): Boolean; override;
+  //Function ItemEquals(Item1,Item2: Pointer): Boolean; override;
   public
     constructor Create; overload;
     constructor Create(Memory: Pointer; Count: Integer); overload;
@@ -121,7 +121,7 @@ end;
 // In default implementation, it calls ItemCompare and when it returns zero,
 // items are considered to be equal.
 
-//Function @ClassName@.ItemEqual(Item1,Item2: Pointer): Boolean; override;
+//Function @ClassName@.ItemEquals(Item1,Item2: Pointer): Boolean; override;
 //begin
 //{$MESSAGE WARN 'Implement equality comparison to suit actual type.'}
 //end;
@@ -232,7 +232,7 @@ type
     procedure ItemFinal({%H-}Item: Pointer); virtual;
     procedure ItemCopy(SrcItem,DstItem: Pointer); virtual;
     Function ItemCompare(Item1,Item2: Pointer): Integer; virtual;
-    Function ItemEqual(Item1,Item2: Pointer): Boolean; virtual;
+    Function ItemEquals(Item1,Item2: Pointer): Boolean; virtual;
     procedure FinalizeAllItems; virtual;
     procedure DoOnChange; virtual;
   public
@@ -335,7 +335,7 @@ If CheckIndex(Index) then
   begin
     System.Move(GetItemPtr(Index)^,fTempItem^,fItemSize);
     System.Move(Value^,GetItemPtr(Index)^,fItemSize);
-    If not ItemEqual(fTempItem,Value) then DoOnChange;
+    If not ItemEquals(fTempItem,Value) then DoOnChange;
   end
 else
   raise Exception.CreateFmt('TMemVector.SetItemPtr: Index (%d) out of bounds.',[Index]);
@@ -461,7 +461,7 @@ end;
 
 //------------------------------------------------------------------------------
 
-Function TMemVector.ItemEqual(Item1,Item2: Pointer): Boolean;
+Function TMemVector.ItemEquals(Item1,Item2: Pointer): Boolean;
 begin
 Result := ItemCompare(Item1,Item2) = 0;
 end;
@@ -610,7 +610,7 @@ end;
 Function TMemVector.IndexOf(Item: Pointer): Integer;
 begin
 For Result := 0 to Pred(fCount) do
-  If ItemEqual(Item,GetItemPtr(Result)) then Exit;
+  If ItemEquals(Item,GetItemPtr(Result)) then Exit;
 Result := -1;
 end;
  
@@ -841,7 +841,7 @@ If Vector is Self.ClassType then
     If Vector.Count = fCount then
       begin
         For i := 0 to Pred(fCount) do
-          If not ItemEqual(GetItemPtr(i),Vector.Pointers[i]) then Exit;
+          If not ItemEquals(GetItemPtr(i),Vector.Pointers[i]) then Exit;
         Result := True;  
       end;
   end
