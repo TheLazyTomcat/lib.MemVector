@@ -307,7 +307,14 @@ type
 implementation
 
 uses
-  SysUtils;
+  SysUtils
+  {$IF Defined(FPC) and not Defined(Unicode)}
+  (*
+    If compiler throws error that LazUTF8 unit cannot be found, you have to
+    add LazUtils to required packages (Project > Project Inspector).
+  *)
+  , LazUTF8
+  {$IFEND};
 
 {==============================================================================}
 {------------------------------------------------------------------------------}
@@ -608,10 +615,16 @@ end;
 //------------------------------------------------------------------------------
 
 Function TMemVector.IndexOf(Item: Pointer): Integer;
+var
+  i:  Integer;
 begin
-For Result := 0 to Pred(fCount) do
-  If ItemEquals(Item,GetItemPtr(Result)) then Exit;
 Result := -1;
+For i := 0 to Pred(fCount) do
+  If ItemEquals(Item,GetItemPtr(i)) then
+    begin
+      Result := i;
+      Exit;
+    end;
 end;
  
 //------------------------------------------------------------------------------
@@ -978,7 +991,11 @@ procedure TMemVector.SaveToFile(const FileName: String);
 var
   FileStream: TFileStream;
 begin
+{$IF Defined(FPC) and not Defined(Unicode)}
+FileStream := TFileStream.Create(UTF8ToSys(FileName),fmCreate or fmShareExclusive);
+{$ELSE}
 FileStream := TFileStream.Create(FileName,fmCreate or fmShareExclusive);
+{$IFEND}
 try
   SaveToStream(FileStream);
 finally
@@ -992,7 +1009,11 @@ procedure TMemVector.LoadFromFile(const FileName: String);
 var
   FileStream: TFileStream;
 begin
+{$IF Defined(FPC) and not Defined(Unicode)}
+FileStream := TFileStream.Create(UTF8ToSys(FileName),fmOpenRead or fmShareDenyWrite);
+{$ELSE}
 FileStream := TFileStream.Create(FileName,fmOpenRead or fmShareDenyWrite);
+{$IFEND}
 try
   LoadFromStream(FileStream);
 finally
