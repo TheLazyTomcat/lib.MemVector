@@ -9,9 +9,9 @@
 
   Memory vector classes
 
-  ©František Milt 2016-03-01
+  ©František Milt 2016-09-04
 
-  Version 1.0.1
+  Version 1.0.2
 
 ===============================================================================}
 (*******************************************************************************
@@ -870,8 +870,9 @@ begin
 Result := False;
 If Size = Vector.Size then
   begin
-    For i := 0 to Pred(Size) do
-      If {%H-}PByte({%H-}PtrUInt(fMemory) + i)^ <> {%H-}PByte({%H-}PtrUInt(Vector.Memory) + i)^ then Exit;
+    If Size > 0 then
+      For i := 0 to Pred(Size) do
+        If {%H-}PByte({%H-}PtrUInt(fMemory) + i)^ <> {%H-}PByte({%H-}PtrUInt(Vector.Memory) + i)^ then Exit;
     Result := True;
   end;
 end;
@@ -894,7 +895,8 @@ If fOwnsMemory then
         For i := 0 to Pred(Count) do
           ItemCopy({%H-}Pointer({%H-}PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr(i))
       else
-        System.Move(Data^,fMemory^,Count * fItemSize);
+        If Count > 0 then
+          System.Move(Data^,fMemory^,Count * fItemSize);
       DoOnChange;
     finally
       EndChanging;
@@ -934,7 +936,8 @@ If fOwnsMemory then
         For i := 0 to Pred(Count) do
           ItemCopy({%H-}Pointer({%H-}PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr((fCount - Count) + i))
       else
-        System.Move(Data^,GetItemPtr(fCount - Count)^,Count * fItemSize);
+        If Count > 0 then
+          System.Move(Data^,GetItemPtr(fCount - Count)^,Count * fItemSize);
       DoOnChange;
     finally
       EndChanging;
