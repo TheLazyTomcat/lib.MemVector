@@ -9,12 +9,13 @@
 
   Memory vector classes
 
-  ©František Milt 2016-09-04
+  ©František Milt 2017-07-18
 
-  Version 1.0.2
+  Version 1.0.3
 
   Dependencies:
     AuxTypes - github.com/ncs-sniper/Lib.AuxTypes
+    StrRect  - github.com/ncs-sniper/Lib.StrRect
 
 ===============================================================================}
 (*******************************************************************************
@@ -199,9 +200,9 @@ interface
 
 {$IFDEF FPC}
   {$MODE Delphi}
-  // Activate symbol BARE_FPC if you want to compile this unit outside of Lazarus.
-  {.$DEFINE BARE_FPC}
 {$ENDIF}
+
+{$TYPEINFO ON}
 
 uses
   Classes, AuxTypes;
@@ -263,7 +264,7 @@ type
     procedure Reverse; virtual;
     procedure Clear; virtual;
     procedure Sort(Reversed: Boolean = False); virtual;
-    Function Equals(Vector: TMemVector): Boolean; overload; virtual;
+    Function IsEqual(Vector: TMemVector): Boolean; virtual;
     Function EqualsBinary(Vector: TMemVector): Boolean; virtual;
     procedure Assign(Data: Pointer; Count: Integer; ManagedCopy: Boolean = False); overload; virtual;
     procedure Assign(Vector: TMemVector; ManagedCopy: Boolean = False); overload; virtual;
@@ -312,14 +313,7 @@ type
 implementation
 
 uses
-  SysUtils
-  {$IF Defined(FPC) and not Defined(Unicode) and not Defined(BARE_FPC)}
-  (*
-    If compiler throws error that LazUTF8 unit cannot be found, you have to
-    add LazUtils to required packages (Project > Project Inspector).
-  *)
-  , LazUTF8
-  {$IFEND};
+  SysUtils, StrRect;
 
 {==============================================================================}
 {------------------------------------------------------------------------------}
@@ -849,7 +843,7 @@ end;
 
 //------------------------------------------------------------------------------
 
-Function TMemVector.Equals(Vector: TMemVector): Boolean;
+Function TMemVector.IsEqual(Vector: TMemVector): Boolean;
 var
   i:  Integer;
 begin
@@ -999,11 +993,7 @@ procedure TMemVector.SaveToFile(const FileName: String);
 var
   FileStream: TFileStream;
 begin
-{$IF Defined(FPC) and not Defined(Unicode) and not Defined(BARE_FPC)}
-FileStream := TFileStream.Create(UTF8ToSys(FileName),fmCreate or fmShareExclusive);
-{$ELSE}
-FileStream := TFileStream.Create(FileName,fmCreate or fmShareExclusive);
-{$IFEND}
+FileStream := TFileStream.Create(StrToRTL(FileName),fmCreate or fmShareExclusive);
 try
   SaveToStream(FileStream);
 finally
@@ -1017,11 +1007,7 @@ procedure TMemVector.LoadFromFile(const FileName: String);
 var
   FileStream: TFileStream;
 begin
-{$IF Defined(FPC) and not Defined(Unicode) and not Defined(BARE_FPC)}
-FileStream := TFileStream.Create(UTF8ToSys(FileName),fmOpenRead or fmShareDenyWrite);
-{$ELSE}
-FileStream := TFileStream.Create(FileName,fmOpenRead or fmShareDenyWrite);
-{$IFEND}
+FileStream := TFileStream.Create(StrToRTL(FileName),fmOpenRead or fmShareDenyWrite);
 try
   LoadFromStream(FileStream);
 finally
