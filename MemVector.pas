@@ -200,6 +200,7 @@ interface
 
 {$IFDEF FPC}
   {$MODE Delphi}
+  {$DEFINE FPC_DisableWarns}
 {$ENDIF}
 
 {$TYPEINFO ON}
@@ -235,7 +236,7 @@ type
     Function GetSize: TMemSize; virtual;
     Function GetAllocatedSize: TMemSize; virtual;
     procedure ItemInit(Item: Pointer); virtual;
-    procedure ItemFinal({%H-}Item: Pointer); virtual;
+    procedure ItemFinal(Item: Pointer); virtual;
     procedure ItemCopy(SrcItem,DstItem: Pointer); virtual;
     Function ItemCompare(Item1,Item2: Pointer): Integer; virtual;
     Function ItemEquals(Item1,Item2: Pointer): Boolean; virtual;
@@ -315,6 +316,11 @@ implementation
 uses
   SysUtils, StrRect;
 
+{$IFDEF FPC_DisableWarns}
+  {$WARN 4055 OFF} // Conversion between ordinals and pointers is not portable
+  {$WARN 5024 OFF} // Parameter "$1" not used
+{$ENDIF}
+
 {==============================================================================}
 {------------------------------------------------------------------------------}
 {                         TMemVector - implementation                          }
@@ -328,7 +334,7 @@ uses
 Function TMemVector.GetItemPtr(Index: Integer): Pointer;
 begin
 If CheckIndex(Index) then
-  Result := {%H-}Pointer({%H-}PtrUInt(fMemory) + PtrUInt(Index * fItemSize))
+  Result := Pointer(PtrUInt(fMemory) + PtrUInt(Index * fItemSize))
 else
   raise Exception.CreateFmt('TMemVector.GetItemPtr: Index (%d) out of bounds.',[Index]);
 end;
@@ -360,7 +366,7 @@ end;
 
 Function TMemVector.GetNextItemPtr(ItemPtr: Pointer): Pointer;
 begin
-Result := {%H-}Pointer({%H-}PtrUInt(ItemPtr) + PtrUInt(fItemSize));
+Result := Pointer(PtrUInt(ItemPtr) + PtrUInt(fItemSize));
 end;
 
 //------------------------------------------------------------------------------
@@ -462,7 +468,7 @@ end;
 
 Function TMemVector.ItemCompare(Item1,Item2: Pointer): Integer;
 begin
-Result := Integer({%H-}PtrUInt(Item2) - {%H-}PtrUInt(Item1));
+Result := Integer(PtrUInt(Item2) - PtrUInt(Item1));
 end;
 
 //------------------------------------------------------------------------------
@@ -871,7 +877,7 @@ If Size = Vector.Size then
   begin
     If Size > 0 then
       For i := 0 to Pred(Size) do
-        If {%H-}PByte({%H-}PtrUInt(fMemory) + i)^ <> {%H-}PByte({%H-}PtrUInt(Vector.Memory) + i)^ then Exit;
+        If PByte(PtrUInt(fMemory) + i)^ <> PByte(PtrUInt(Vector.Memory) + i)^ then Exit;
     Result := True;
   end;
 end;
@@ -892,7 +898,7 @@ If fOwnsMemory then
       fCount := Count;
       If ManagedCopy then
         For i := 0 to Pred(Count) do
-          ItemCopy({%H-}Pointer({%H-}PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr(i))
+          ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr(i))
       else
         If Count > 0 then
           System.Move(Data^,fMemory^,Count * fItemSize);
@@ -933,7 +939,7 @@ If fOwnsMemory then
       fCount := fCount + Count;
       If ManagedCopy then
         For i := 0 to Pred(Count) do
-          ItemCopy({%H-}Pointer({%H-}PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr((fCount - Count) + i))
+          ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr((fCount - Count) + i))
       else
         If Count > 0 then
           System.Move(Data^,GetItemPtr(fCount - Count)^,Count * fItemSize);
