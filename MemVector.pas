@@ -9,13 +9,14 @@
 
   Memory vector classes
 
-  ©František Milt 2017-07-18
+  ©František Milt 2018-05-02
 
-  Version 1.0.3
+  Version 1.1.0
 
   Dependencies:
-    AuxTypes - github.com/ncs-sniper/Lib.AuxTypes
-    StrRect  - github.com/ncs-sniper/Lib.StrRect
+    AuxTypes   - github.com/ncs-sniper/Lib.AuxTypes
+    AuxClasses - github.com/ncs-sniper/Lib.AuxClasses
+    StrRect    - github.com/ncs-sniper/Lib.StrRect
 
 ===============================================================================}
 (*******************************************************************************
@@ -206,35 +207,43 @@ interface
 {$TYPEINFO ON}
 
 uses
-  Classes, AuxTypes;
+  Classes, AuxTypes, AuxClasses;
 
 type
-{==============================================================================}
-{------------------------------------------------------------------------------}
-{                           TMemVector - declaration                           }
-{------------------------------------------------------------------------------}
-{==============================================================================}
+{===============================================================================
+--------------------------------------------------------------------------------
+                                   TMemVector
+--------------------------------------------------------------------------------
+===============================================================================}
 
-  TMemVector = class(TObject)
+{===============================================================================
+    TMemVector - class declaration
+===============================================================================}
+
+  TMemVector = class(TCustomListObject)
   private
-    fItemSize:    Integer;
-    fMemory:      Pointer;
-    fOwnsMemory:  Boolean;
-    fCapacity:    Integer;
-    fCount:       Integer;
-    fChanging:    Integer;
-    fChanged:     Boolean;
-    fOnChange:    TNotifyEvent;
+    fItemSize:      Integer;
+    fOwnsMemory:    Boolean;
+    fMemory:        Pointer;
+    fCapacity:      Integer;
+    fCount:         Integer;
+    fChangeCounter: Integer;
+    fChanged:       Boolean;
+    fOnChange:      TNotifyEvent;
   protected
-    fTempItem:    Pointer;
+    fTempItem:      Pointer;
+    Function GetCapacity: Integer; override;
+    procedure SetCapacity(Value: Integer); override;
+    Function GetCount: Integer; override;
+    procedure SetCount(Value: Integer); override;
     Function GetItemPtr(Index: Integer): Pointer; virtual;
     procedure SetItemPtr(Index: Integer; Value: Pointer); virtual;
-    Function CheckIndex(Index: Integer; RaiseException: Boolean = False; MethodName: String = 'CheckIndex'): Boolean; virtual;
-    Function GetNextItemPtr(ItemPtr: Pointer): Pointer; virtual;
-    procedure SetCapacity(Value: Integer); virtual;
-    procedure SetCount(Value: Integer); virtual;
     Function GetSize: TMemSize; virtual;
     Function GetAllocatedSize: TMemSize; virtual;
+    Function CheckIndexAndRaise(Index: Integer; CallingMethod: String = 'CheckIndexAndRaise'): Boolean; virtual;
+    procedure RaiseError(const ErrorMessage: String; Values: array of const); overload; virtual;
+    procedure RaiseError(const ErrorMessage: String); overload; virtual;
+    Function GetNextItemPtr(ItemPtr: Pointer): Pointer; virtual;
     procedure ItemInit(Item: Pointer); virtual;
     procedure ItemFinal(Item: Pointer); virtual;
     procedure ItemCopy(SrcItem,DstItem: Pointer); virtual;
@@ -248,12 +257,10 @@ type
     destructor Destroy; override;
     procedure BeginChanging; virtual;
     Function EndChanging: Integer; virtual;
-    Function LowIndex: Integer; virtual;
-    Function HighIndex: Integer; virtual;
+    Function LowIndex: Integer; override;
+    Function HighIndex: Integer; override;
     Function First: Pointer; virtual;
     Function Last: Pointer; virtual;
-    Function Grow(Force: Boolean = False): Integer; virtual;
-    Function Shrink: Integer; virtual;
     Function IndexOf(Item: Pointer): Integer; virtual;
     Function Add(Item: Pointer): Integer; virtual;
     procedure Insert(Index: Integer; Item: Pointer); virtual;
@@ -280,18 +287,20 @@ type
   published
     property ItemSize: Integer read fItemSize;
     property OwnsMemory: Boolean read fOwnsMemory write fOwnsMemory;
-    property Capacity: Integer read fCapacity write SetCapacity;
-    property Count: Integer read fCount write SetCount; 
     property Size: TMemSize read GetSize;
     property AllocatedSize: TMemSize read GetAllocatedSize;
     property OnChange: TNotifyEvent read fOnChange write fOnChange;
   end;
 
-{==============================================================================}
-{------------------------------------------------------------------------------}
-{                         TIntegerVector - declaration                         }
-{------------------------------------------------------------------------------}
-{==============================================================================}
+{===============================================================================
+--------------------------------------------------------------------------------
+                                 TIntegerVector
+--------------------------------------------------------------------------------
+===============================================================================}
+
+{===============================================================================
+    TIntegerVector - class declaration
+===============================================================================}
 
   TIntegerVector = class(TMemVector)
   protected
@@ -321,52 +330,23 @@ uses
   {$WARN 5024 OFF} // Parameter "$1" not used
 {$ENDIF}
 
-{==============================================================================}
-{------------------------------------------------------------------------------}
-{                         TMemVector - implementation                          }
-{------------------------------------------------------------------------------}
-{==============================================================================}
+{===============================================================================
+--------------------------------------------------------------------------------
+                                   TMemVector
+--------------------------------------------------------------------------------
+===============================================================================}
 
-{==============================================================================}
-{   TMemVector - protected methods                                             }
-{==============================================================================}
+{===============================================================================
+    TMemVector - class declaration
+===============================================================================}
 
-Function TMemVector.GetItemPtr(Index: Integer): Pointer;
+{-------------------------------------------------------------------------------
+    TMemVector - protected methods
+-------------------------------------------------------------------------------}
+
+Function TmemVector.GetCapacity: Integer;
 begin
-If CheckIndex(Index) then
-  Result := Pointer(PtrUInt(fMemory) + PtrUInt(Index * fItemSize))
-else
-  raise Exception.CreateFmt('TMemVector.GetItemPtr: Index (%d) out of bounds.',[Index]);
-end;
-
-//------------------------------------------------------------------------------
-
-procedure TMemVector.SetItemPtr(Index: Integer; Value: Pointer);
-begin
-If CheckIndex(Index) then
-  begin
-    System.Move(GetItemPtr(Index)^,fTempItem^,fItemSize);
-    System.Move(Value^,GetItemPtr(Index)^,fItemSize);
-    If not ItemEquals(fTempItem,Value) then DoOnChange;
-  end
-else
-  raise Exception.CreateFmt('TMemVector.SetItemPtr: Index (%d) out of bounds.',[Index]);
-end;
-
-//------------------------------------------------------------------------------
-
-Function TMemVector.CheckIndex(Index: Integer; RaiseException: Boolean = False; MethodName: String = 'CheckIndex'): Boolean;
-begin
-Result := (Index >= 0) and (Index < fCount);
-If not Result and RaiseException then
-  raise Exception.CreateFmt('TMemVector.%s: Index (%d) out of bounds.',[MethodName,Index]);
-end;
-
-//------------------------------------------------------------------------------
-
-Function TMemVector.GetNextItemPtr(ItemPtr: Pointer): Pointer;
-begin
-Result := Pointer(PtrUInt(ItemPtr) + PtrUInt(fItemSize));
+Result := fCapacity;
 end;
 
 //------------------------------------------------------------------------------
@@ -380,7 +360,8 @@ If fOwnsMemory then
     If (Value <> fCapacity) and (Value >= 0) then
       begin
         If Value < fCount then
-          For i := Value to Pred(fCount) do ItemFinal(GetItemPtr(i));
+          For i := Value to HighIndex do
+            ItemFinal(GetItemPtr(i));
         ReallocMem(fMemory,TMemSize(Value) * TMemSize(fItemSize));
         fCapacity := Value;
         If Value < fCount then
@@ -390,7 +371,14 @@ If fOwnsMemory then
           end;
       end;
   end
-else raise Exception.Create('TMemVector.SetCapacity: Operation not allowed for not owned memory.');
+else RaiseError('SetCapacity: Operation not allowed for not owned memory.');
+end;
+
+//------------------------------------------------------------------------------
+
+Function TmemVector.GetCount: Integer;
+begin
+Result := fCount;
 end;
 
 //------------------------------------------------------------------------------
@@ -406,17 +394,18 @@ If fOwnsMemory then
       begin
         BeginChanging;
         try
-          If Value > fCapacity then SetCapacity(Value);
+          If Value > fCapacity then
+            SetCapacity(Value);
           If Value > fCount then
             begin
               OldCount := fCount;
               fCount := Value;
-              For i := OldCount to Pred(fCount) do
+              For i := OldCount to HighIndex do
                 ItemInit(GetItemPtr(i));
             end
           else
             begin
-              For i := Pred(fCount) downto Value do
+              For i := HighIndex downto Value do
                 ItemFinal(GetItemPtr(i));
               fCount := Value;
             end;
@@ -426,7 +415,31 @@ If fOwnsMemory then
         end;
       end;
   end
-else raise Exception.Create('TMemVector.SetCount: Operation not allowed for not owned memory.');
+else RaiseError('SetCount: Operation not allowed for not owned memory.');
+end;
+
+//------------------------------------------------------------------------------
+
+Function TMemVector.GetItemPtr(Index: Integer): Pointer;
+begin
+Result := nil;
+If CheckIndex(Index) then
+  Result := Pointer(PtrUInt(fMemory) + PtrUInt(Index * fItemSize))
+else
+  RaiseError('GetItemPtr: Index (%d) out of bounds.',[Index]);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TMemVector.SetItemPtr(Index: Integer; Value: Pointer);
+begin
+If CheckIndex(Index) then
+  begin
+    System.Move(GetItemPtr(Index)^,fTempItem^,fItemSize);
+    System.Move(Value^,GetItemPtr(Index)^,fItemSize);
+    If not ItemEquals(fTempItem,Value) then DoOnChange;
+  end
+else RaiseError('SetItemPtr: Index (%d) out of bounds.',[Index]);
 end;
 
 //------------------------------------------------------------------------------
@@ -440,7 +453,37 @@ end;
 
 Function TMemVector.GetAllocatedSize: TMemSize;
 begin
-Result := TMemSize(fCapacity) * TMemSize(fItemSize); 
+Result := TMemSize(fCapacity) * TMemSize(fItemSize);
+end;
+
+//------------------------------------------------------------------------------
+
+Function TMemVector.CheckIndexAndRaise(Index: Integer; CallingMethod: String = 'CheckIndexAndRaise'): Boolean;
+begin
+Result := CheckIndex(Index);
+If not Result then
+  RaiseError('%s: Index (%d) out of bounds.',[CallingMethod,Index]);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TMemVector.RaiseError(const ErrorMessage: String; Values: array of const);
+begin
+raise Exception.CreateFmt(Format('%s.%s',[Self.ClassName,ErrorMessage]),Values);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TMemVector.RaiseError(const ErrorMessage: String);
+begin
+RaiseError(ErrorMessage,[]);
+end;
+
+//------------------------------------------------------------------------------
+
+Function TMemVector.GetNextItemPtr(ItemPtr: Pointer): Pointer;
+begin
+Result := Pointer(PtrUInt(ItemPtr) + PtrUInt(fItemSize));
 end;
 
 //------------------------------------------------------------------------------
@@ -484,7 +527,7 @@ procedure TMemVector.FinalizeAllItems;
 var
   i:  Integer;
 begin
-For i := 0 to Pred(fCount) do
+For i := LowIndex to HighIndex do
   ItemFinal(GetItemPtr(i));
 end;
 
@@ -493,25 +536,27 @@ end;
 procedure TMemVector.DoOnChange;
 begin
 fChanged := True;
-If (fChanging <= 0) and Assigned(fOnChange) then fOnChange(Self);
+If (fChangeCounter <= 0) and Assigned(fOnChange) then
+  fOnChange(Self);
 end;
 
-{==============================================================================}
-{   TMemVector - public methods                                                }
-{==============================================================================}
+{-------------------------------------------------------------------------------
+    TMemVector - public methods
+-------------------------------------------------------------------------------}
 
 constructor TMemVector.Create(ItemSize: Integer);
 begin
 inherited Create;
 If ItemSize <= 0 then
-  raise Exception.Create('TMemVector.Create: Size of the item must be larger than zero.');
+  RaiseError('Create: Size of the item must be larger than zero.');
 fItemSize := ItemSize;
-fMemory := nil;
 fOwnsMemory := True;
+fMemory := nil;
 fCapacity := 0;
 fCount := 0;
-fChanging := 0;
+fChangeCounter := 0;
 fChanged := False;
+fOnChange := nil;
 GetMem(fTempItem,ItemSize);
 end;
 
@@ -520,8 +565,9 @@ end;
 constructor TMemVector.Create(Memory: Pointer; Count: Integer; ItemSize: Integer);
 begin
 Create(ItemSize);
-fMemory := Memory;
 fOwnsMemory := False;
+fMemory := Memory;
+fCapacity := Count;
 fCount := Count;
 end;
 
@@ -542,21 +588,24 @@ end;
 
 procedure TMemVector.BeginChanging;
 begin
-If fChanging <= 0 then fChanged := False;
-Inc(fChanging);
+If fChangeCounter <= 0 then
+  fChanged := False;
+Inc(fChangeCounter);
 end;
 
 //------------------------------------------------------------------------------
 
 Function TMemVector.EndChanging: Integer;
 begin
-Dec(fChanging);
-If fChanging <= 0 then
+Dec(fChangeCounter);
+If fChangeCounter <= 0 then
   begin
-    fChanging := 0;
-    If fChanged and Assigned(fOnChange) then fOnChange(Self);
+    fChangeCounter := 0;
+    If fChanged and Assigned(fOnChange) then
+      fOnChange(Self);
+    fChanged := False;
   end;
-Result := fChanging;  
+Result := fChangeCounter;
 end;
 
 //------------------------------------------------------------------------------
@@ -589,42 +638,12 @@ end;
 
 //------------------------------------------------------------------------------
 
-Function TMemVector.Grow(Force: Boolean = False): Integer;
-var
-  Delta:  Integer;
-begin
-If Force then
-  begin
-    If fCapacity <= 256 then Delta := 32
-      else Delta := ((fCapacity div 4) or $F) + 1;
-    SetCapacity(fCapacity + Delta);
-    Result := fCapacity
-  end
-else
-  begin
-    If fCount >= fCapacity then
-      Result := Grow(True)
-    else
-      Result := fCapacity;
-  end;
-end;
-
-//------------------------------------------------------------------------------
-
-Function TMemVector.Shrink: Integer;
-begin
-SetCapacity(fCount);
-Result := fCapacity;
-end;
-
-//------------------------------------------------------------------------------
-
 Function TMemVector.IndexOf(Item: Pointer): Integer;
 var
   i:  Integer;
 begin
 Result := -1;
-For i := 0 to Pred(fCount) do
+For i := LowIndex to HighIndex do
   If ItemEquals(Item,GetItemPtr(i)) then
     begin
       Result := i;
@@ -636,15 +655,16 @@ end;
 
 Function TMemVector.Add(Item: Pointer): Integer;
 begin
+Result := -1;
 If fOwnsMemory then
   begin
     Grow;
-    Inc(fCount);
-    System.Move(Item^,GetItemPtr(Pred(fCount))^,fItemSize);
     Result := fCount;
+    Inc(fCount);
+    System.Move(Item^,GetItemPtr(Result)^,fItemSize);
     DoOnChange;
   end
-else raise Exception.Create('TMemVector.Add: Operation not allowed for not owned memory.');
+else RaiseError('Add: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -666,23 +686,27 @@ If fOwnsMemory then
       end
     else
       begin
-        If Index >= fCount then Add(Item)
-         else raise Exception.CreateFmt('TMemVector.Insert: Index (%d) out of bounds.',[Index]);
+        If Index >= fCount then
+          Add(Item)
+        else
+          RaiseError('Insert: Index (%d) out of bounds.',[Index]);
       end;
   end
-else raise Exception.Create('TMemVector.Add: Operation not allowed for not owned memory.');
+else RaiseError('Insert: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
 
 Function TMemVector.Remove(Item: Pointer): Integer;
 begin
+Result := -1;
 If fOwnsMemory then
   begin
     Result := IndexOf(Item);
-    If Result >= 0 then Delete(Result);
+    If Result >= 0 then
+      Delete(Result);
   end
-else raise Exception.Create('TMemVector.Remove: Operation not allowed for not owned memory.');
+else RaiseError('Remove: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -691,6 +715,7 @@ Function TMemVector.Extract(Item: Pointer): Pointer;
 var
   Index:  Integer;
 begin
+Result := nil;
 If fOwnsMemory then
   begin
     Index := IndexOf(Item);
@@ -700,9 +725,9 @@ If fOwnsMemory then
         Delete(Index);
         Result := fTempItem;
       end
-    else raise Exception.Create('TMemVector.Extract: Requested item not found.');
+    else RaiseError('Extract: Requested item not found.');
   end
-else raise Exception.Create('TMemVector.Extract: Operation not allowed for not owned memory.');
+else RaiseError('Extract: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -720,11 +745,12 @@ If fOwnsMemory then
         If Index < Pred(fCount) then
           System.Move(GetNextItemPtr(DeletePtr)^,DeletePtr^,fItemSize * Pred(fCount - Index));
         Dec(fCount);
+        Shrink;
         DoOnChange;
       end
-    else raise Exception.CreateFmt('TMemVector.Delete: Index (%d) out of bounds.',[Index]);
+    else RaiseError('Delete: Index (%d) out of bounds.',[Index]);
   end
-else raise Exception.Create('TMemVector.Delete: Operation not allowed for not owned memory.');
+else RaiseError('Delete: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -734,7 +760,7 @@ var
   SrcPtr: Pointer;
   DstPtr: Pointer;
 begin
-If CheckIndex(SrcIndex,True,'Move') and CheckIndex(DstIndex,True,'Move') then
+If CheckIndexAndRaise(SrcIndex,'Move') and CheckIndexAndRaise(DstIndex,'Move') then
   If SrcIndex <> DstIndex then
     begin
       SrcPtr := GetItemPtr(SrcIndex);
@@ -756,7 +782,7 @@ var
   Idx1Ptr:  Pointer;
   Idx2Ptr:  Pointer;
 begin
-If CheckIndex(Index1,True,'Move') and CheckIndex(Index2,True,'Move') then
+If CheckIndexAndRaise(Index1,'Exchange') and CheckIndexAndRaise(Index2,'Exchange') then
   If Index1 <> Index2 then
     begin
       Idx1Ptr := GetItemPtr(Index1);
@@ -778,7 +804,7 @@ If fCount > 1 then
   begin
     BeginChanging;
     try
-      For i := 0 to Pred(fCount shr 1) do
+      For i := LowIndex to Pred(fCount shr 1) do
         Exchange(i,Pred(fCount - i));
       DoOnChange;
     finally
@@ -798,13 +824,16 @@ If fOwnsMemory then
   begin
     FinalizeAllItems;
     fCount := 0;
+    Shrink;
   end
 else
   begin
+    fCapacity := 0;
     fCount := 0;
     fMemory := nil;
   end;
-If OldCount > 0 then DoOnChange;
+If OldCount > 0 then
+  DoOnChange;
 end;
 
 //------------------------------------------------------------------------------
@@ -858,12 +887,12 @@ If Vector is Self.ClassType then
   begin
     If Vector.Count = fCount then
       begin
-        For i := 0 to Pred(fCount) do
+        For i := LowIndex to HighIndex do
           If not ItemEquals(GetItemPtr(i),Vector.Pointers[i]) then Exit;
         Result := True;  
       end;
   end
-else raise Exception.CreateFmt('TMemVector.Equals: Object is of incompatible class (%s).',[Vector.ClassName]);
+else RaiseError('IsEqual: Object is of incompatible class (%s).',[Vector.ClassName]);
 end;
 
 //------------------------------------------------------------------------------
@@ -907,7 +936,7 @@ If fOwnsMemory then
       EndChanging;
     end;
   end
-else raise Exception.Create('TMemVector.Assign: Operation not allowed for not owned memory.');
+else RaiseError('Assign: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -919,9 +948,9 @@ If fOwnsMemory then
     If Vector is Self.ClassType then
       Assign(Vector.Memory,Vector.Count,ManagedCopy)
     else
-      raise Exception.CreateFmt('TMemVector.Assign: Object is of incompatible class (%s).',[Vector.ClassName]);
+      RaiseError('Assign: Object is of incompatible class (%s).',[Vector.ClassName]);
   end
-else raise Exception.Create('TMemVector.Assign: Operation not allowed for not owned memory.');
+else RaiseError('Assign: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -948,7 +977,7 @@ If fOwnsMemory then
       EndChanging;
     end;
   end
-else raise Exception.Create('TMemVector.Assign: Operation not allowed for not owned memory.');    
+else RaiseError('Append: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -960,9 +989,9 @@ If fOwnsMemory then
     If Vector is Self.ClassType then
       Append(Vector.Memory,Vector.Count,ManagedCopy)
     else
-      raise Exception.CreateFmt('TMemVector.Append: Object is of incompatible class (%s).',[Vector.ClassName]);
+      RaiseError('Append: Object is of incompatible class (%s).',[Vector.ClassName]);
   end
-else raise Exception.Create('TMemVector.Append: Operation not allowed for not owned memory.');
+else RaiseError('Append: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -990,7 +1019,7 @@ If fOwnsMemory then
       EndChanging;
     end;
   end
-else raise Exception.Create('LoadFromStream: Operation not allowed for not owned memory.');
+else RaiseError('LoadFromStream: Operation not allowed for not owned memory.');
 end;
 
 //------------------------------------------------------------------------------
@@ -1022,15 +1051,19 @@ end;
 end;
 
 
-{==============================================================================}
-{------------------------------------------------------------------------------}
-{                        TIntegerVector - implementation                       }
-{------------------------------------------------------------------------------}
-{==============================================================================}
+{===============================================================================
+--------------------------------------------------------------------------------
+                                 TIntegerVector
+--------------------------------------------------------------------------------
+===============================================================================}
 
-{==============================================================================}
-{   TIntegerVector - protected methods                                         }
-{==============================================================================}
+{===============================================================================
+    TIntegerVector - class declaration
+===============================================================================}
+
+{-------------------------------------------------------------------------------
+    TIntegerVector - private methods
+-------------------------------------------------------------------------------}
 
 Function TIntegerVector.GetItem(Index: Integer): Integer;
 begin
@@ -1051,9 +1084,9 @@ begin
 Result := Integer(Item2^) - Integer(Item1^);
 end;
 
-{==============================================================================}
-{   TIntegerVector - public methods                                            }
-{==============================================================================}
+{-------------------------------------------------------------------------------
+    TIntegerVector - public methods
+-------------------------------------------------------------------------------}
 
 constructor TIntegerVector.Create;
 begin
