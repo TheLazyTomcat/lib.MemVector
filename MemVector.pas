@@ -197,14 +197,15 @@ end;
 *******************************************************************************)
 unit MemVector;
 
-interface
-
 {$IFDEF FPC}
   {$MODE Delphi}
   {$DEFINE FPC_DisableWarns}
+  {$MACRO ON}
 {$ENDIF}
 
 {$TYPEINFO ON}
+
+interface
 
 uses
   Classes, AuxTypes, AuxClasses;
@@ -326,8 +327,9 @@ uses
   SysUtils, StrRect;
 
 {$IFDEF FPC_DisableWarns}
-  {$WARN 4055 OFF} // Conversion between ordinals and pointers is not portable
-  {$WARN 5024 OFF} // Parameter "$1" not used
+  {$DEFINE FPCDWM}
+  {$DEFINE W4055:={$WARN 4055 OFF}} // Conversion between ordinals and pointers is not portable
+  {$DEFINE W5024:={$WARN 5024 OFF}} // Parameter "$1" not used
 {$ENDIF}
 
 {===============================================================================
@@ -420,6 +422,7 @@ end;
 
 //------------------------------------------------------------------------------
 
+{$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
 Function TMemVector.GetItemPtr(Index: Integer): Pointer;
 begin
 Result := nil;
@@ -428,6 +431,7 @@ If CheckIndex(Index) then
 else
   RaiseError('GetItemPtr: Index (%d) out of bounds.',[Index]);
 end;
+{$IFDEF FPCDWM}{$POP}{$ENDIF}
 
 //------------------------------------------------------------------------------
 
@@ -483,7 +487,9 @@ end;
 
 Function TMemVector.GetNextItemPtr(ItemPtr: Pointer): Pointer;
 begin
+{$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
 Result := Pointer(PtrUInt(ItemPtr) + PtrUInt(fItemSize));
+{$IFDEF FPCDWM}{$POP}{$ENDIF}
 end;
 
 //------------------------------------------------------------------------------
@@ -495,10 +501,12 @@ end;
 
 //------------------------------------------------------------------------------
 
+{$IFDEF FPCDWM}{$PUSH}W5024{$ENDIF}
 procedure TMemVector.ItemFinal(Item: Pointer);
 begin
 // nothing to do here
 end;
+{$IFDEF FPCDWM}{$POP}{$ENDIF}
 
 //------------------------------------------------------------------------------
 
@@ -511,7 +519,9 @@ end;
 
 Function TMemVector.ItemCompare(Item1,Item2: Pointer): Integer;
 begin
+{$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
 Result := Integer(PtrUInt(Item2) - PtrUInt(Item1));
+{$IFDEF FPCDWM}{$POP}{$ENDIF}
 end;
 
 //------------------------------------------------------------------------------
@@ -906,7 +916,9 @@ If Size = Vector.Size then
   begin
     If Size > 0 then
       For i := 0 to Pred(Size) do
+      {$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
         If PByte(PtrUInt(fMemory) + i)^ <> PByte(PtrUInt(Vector.Memory) + i)^ then Exit;
+      {$IFDEF FPCDWM}{$POP}{$ENDIF}
     Result := True;
   end;
 end;
@@ -927,7 +939,9 @@ If fOwnsMemory then
       fCount := Count;
       If ManagedCopy then
         For i := 0 to Pred(Count) do
+        {$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
           ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr(i))
+        {$IFDEF FPCDWM}{$POP}{$ENDIF}
       else
         If Count > 0 then
           System.Move(Data^,fMemory^,Count * fItemSize);
@@ -968,7 +982,9 @@ If fOwnsMemory then
       fCount := fCount + Count;
       If ManagedCopy then
         For i := 0 to Pred(Count) do
+        {$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
           ItemCopy(Pointer(PtrUInt(Data) + PtrUInt(i * fItemSize)),GetItemPtr((fCount - Count) + i))
+        {$IFDEF FPCDWM}{$POP}{$ENDIF}
       else
         If Count > 0 then
           System.Move(Data^,GetItemPtr(fCount - Count)^,Count * fItemSize);
