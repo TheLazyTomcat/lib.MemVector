@@ -9,9 +9,9 @@
 
   Memory vector classes
 
-  ©František Milt 2018-05-02
+  ©František Milt 2018-09-20
 
-  Version 1.1.0
+  Version 1.1.1
 
   Dependencies:
     AuxTypes   - github.com/ncs-sniper/Lib.AuxTypes
@@ -852,24 +852,32 @@ procedure TMemVector.Sort(Reversed: Boolean = False);
 
   procedure QuickSort(Left,Right: Integer; Coef: Integer);
   var
-    Pivot:  Pointer;
-    Idx,i:  Integer;
+    PivotIdx,LowIdx,HighIdx: Integer;
   begin
-    If Left < Right  then
-      begin
-        Exchange((Left + Right) shr 1,Right);
-        Pivot := GetItemPtr(Right);
-        Idx := Left;
-        For i := Left to Pred(Right) do
-          If (ItemCompare(Pivot,GetItemPtr(i)) * Coef) < 0 then
-            begin
-              Exchange(i,idx);
-              Inc(Idx);
-            end;
-        Exchange(Idx,Right);
-        QuickSort(Left,Idx - 1,Coef);
-        QuickSort(Idx + 1, Right,Coef);
-      end;
+    repeat
+      LowIdx := Left;
+      HighIdx := Right;
+      PivotIdx := (Left + Right) shr 1;
+      repeat
+        while (ItemCompare(GetItemPtr(PivotIdx),GetItemPtr(LowIdx)) * Coef) < 0 do
+          Inc(LowIdx);
+        while (ItemCompare(GetItemPtr(PivotIdx),GetItemPtr(HighIdx)) * Coef) > 0 do
+          Dec(HighIdx);
+        If LowIdx <= HighIdx then
+          begin
+            Exchange(LowIdx,HighIdx);
+            If PivotIdx = LowIdx then
+              PivotIdx := HighIdx
+            else If PivotIdx = HighIdx then
+              PivotIdx := LowIdx;
+            Inc(LowIdx);
+            Dec(HighIdx);  
+          end;
+      until LowIdx > HighIdx;
+      If Left < HighIdx then
+        QuickSort(Left,HighIdx,Coef);
+      Left := LowIdx;
+    until LowIdx >= Right;
   end;
 
 begin
