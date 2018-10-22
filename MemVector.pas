@@ -9,14 +9,15 @@
 
   Memory vector classes
 
-  ©František Milt 2018-09-20
+  ©František Milt 2018-10-22
 
-  Version 1.1.1
+  Version 1.1.2
 
   Dependencies:
-    AuxTypes   - github.com/ncs-sniper/Lib.AuxTypes
-    AuxClasses - github.com/ncs-sniper/Lib.AuxClasses
-    StrRect    - github.com/ncs-sniper/Lib.StrRect
+    AuxTypes     - github.com/ncs-sniper/Lib.AuxTypes
+    AuxClasses   - github.com/ncs-sniper/Lib.AuxClasses
+    StrRect      - github.com/ncs-sniper/Lib.StrRect
+    IndexSorters - github.com/ncs-sniper/Lib.IndexSorters
 
 ===============================================================================}
 (*******************************************************************************
@@ -203,8 +204,6 @@ unit MemVector;
   {$MACRO ON}
 {$ENDIF}
 
-{$TYPEINFO ON}
-
 interface
 
 uses
@@ -250,6 +249,7 @@ type
     procedure ItemCopy(SrcItem,DstItem: Pointer); virtual;
     Function ItemCompare(Item1,Item2: Pointer): Integer; virtual;
     Function ItemEquals(Item1,Item2: Pointer): Boolean; virtual;
+    Function CompareItems(Index1,Index2: Integer): Integer; virtual;
     procedure FinalizeAllItems; virtual;
     procedure DoOnChange; virtual;
   public
@@ -285,7 +285,6 @@ type
     procedure LoadFromFile(const FileName: String); virtual;  
     property Memory: Pointer read fMemory;
     property Pointers[Index: Integer]: Pointer read GetItemPtr;
-  published
     property ItemSize: Integer read fItemSize;
     property OwnsMemory: Boolean read fOwnsMemory write fOwnsMemory;
     property Size: TMemSize read GetSize;
@@ -324,7 +323,7 @@ type
 implementation
 
 uses
-  SysUtils, StrRect;
+  SysUtils, StrRect, IndexSorters;
 
 {$IFDEF FPC_DisableWarns}
   {$DEFINE FPCDWM}
@@ -529,6 +528,13 @@ end;
 Function TMemVector.ItemEquals(Item1,Item2: Pointer): Boolean;
 begin
 Result := ItemCompare(Item1,Item2) = 0;
+end;
+
+//------------------------------------------------------------------------------
+
+Function TMemVector.CompareItems(Index1,Index2: Integer): Integer;
+begin
+Result := ItemCompare(GetItemPtr(Index1),GetItemPtr(Index2));
 end;
 
 //------------------------------------------------------------------------------
@@ -849,44 +855,20 @@ end;
 //------------------------------------------------------------------------------
 
 procedure TMemVector.Sort(Reversed: Boolean = False);
-
-  procedure QuickSort(Left,Right: Integer; Coef: Integer);
-  var
-    PivotIdx,LowIdx,HighIdx: Integer;
-  begin
-    repeat
-      LowIdx := Left;
-      HighIdx := Right;
-      PivotIdx := (Left + Right) shr 1;
-      repeat
-        while (ItemCompare(GetItemPtr(PivotIdx),GetItemPtr(LowIdx)) * Coef) < 0 do
-          Inc(LowIdx);
-        while (ItemCompare(GetItemPtr(PivotIdx),GetItemPtr(HighIdx)) * Coef) > 0 do
-          Dec(HighIdx);
-        If LowIdx <= HighIdx then
-          begin
-            Exchange(LowIdx,HighIdx);
-            If PivotIdx = LowIdx then
-              PivotIdx := HighIdx
-            else If PivotIdx = HighIdx then
-              PivotIdx := LowIdx;
-            Inc(LowIdx);
-            Dec(HighIdx);  
-          end;
-      until LowIdx > HighIdx;
-      If Left < HighIdx then
-        QuickSort(Left,HighIdx,Coef);
-      Left := LowIdx;
-    until LowIdx >= Right;
-  end;
-
+var
+  Sorter: TIndexQuickSorter;
 begin
 If fCount > 1 then
   begin
     BeginChanging;
     try
-      If Reversed then QuickSort(0,Pred(fCount),-1)
-        else QuickSort(0,Pred(fCount),1);
+      Sorter := TIndexQuickSorter.Create(CompareItems,Exchange);
+      try
+        Sorter.Reversed := Reversed;
+        Sorter.Sort(LowIndex,HighIndex);
+      finally
+        Sorter.Free;
+      end;
       DoOnChange;
     finally
       EndChanging;
