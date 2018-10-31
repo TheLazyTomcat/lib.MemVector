@@ -14,10 +14,10 @@
   Version 1.1.2
 
   Dependencies:
-    AuxTypes     - github.com/ncs-sniper/Lib.AuxTypes
-    AuxClasses   - github.com/ncs-sniper/Lib.AuxClasses
-    StrRect      - github.com/ncs-sniper/Lib.StrRect
-    IndexSorters - github.com/ncs-sniper/Lib.IndexSorters
+    AuxTypes    - github.com/ncs-sniper/Lib.AuxTypes
+    AuxClasses  - github.com/ncs-sniper/Lib.AuxClasses
+    StrRect     - github.com/ncs-sniper/Lib.StrRect
+    ListSorters - github.com/ncs-sniper/Lib.ListSorters
 
 ===============================================================================}
 (*******************************************************************************
@@ -323,7 +323,7 @@ type
 implementation
 
 uses
-  SysUtils, StrRect, IndexSorters;
+  SysUtils, StrRect, ListSorters;
 
 {$IFDEF FPC_DisableWarns}
   {$DEFINE FPCDWM}
@@ -856,13 +856,13 @@ end;
 
 procedure TMemVector.Sort(Reversed: Boolean = False);
 var
-  Sorter: TIndexQuickSorter;
+  Sorter: TListQuickSorter;
 begin
 If fCount > 1 then
   begin
     BeginChanging;
     try
-      Sorter := TIndexQuickSorter.Create(CompareItems,Exchange);
+      Sorter := TListQuickSorter.Create(CompareItems,Exchange);
       try
         Sorter.Reversed := Reversed;
         Sorter.Sort(LowIndex,HighIndex);
