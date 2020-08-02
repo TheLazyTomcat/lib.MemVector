@@ -24,7 +24,7 @@
 
   Version 1.2 (2020-05-20)
 
-  Last change 2020-05-20
+  Last change 2020-08-02
 
   ©2016-2020 František Milt
 
@@ -238,6 +238,7 @@ unit MemVector;
   {$DEFINE FPC_DisableWarns}
   {$MACRO ON}
 {$ENDIF}
+{$H+}
 
 interface
 
