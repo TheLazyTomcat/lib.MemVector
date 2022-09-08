@@ -24,9 +24,9 @@
 
   Version 1.2 (2020-05-20)
 
-  Last change 2020-08-02
+  Last change 2022-09-08
 
-  ©2016-2020 František Milt
+  ©2016-2022 František Milt
 
   Contacts:
     František Milt: frantisek.milt@gmail.com
@@ -136,11 +136,10 @@ end;
 
 //------------------------------------------------------------------------------
 
-
 // This method is called when there is a need to compare two items, for example
 // when sorting the vector.
-// Must return negative number when Item1 is higher/larger than Item2, zero when
-// they are equal and positive number when Item1 is lower/smaller than Item2.
+// Must return positive number when Item1 is higher/larger than Item2, zero when
+// they are equal and negative number when Item1 is lower/smaller than Item2.
 // No default implementation.
 // This method must be implemented in derived classes!
 
