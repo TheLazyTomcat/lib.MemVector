@@ -24,7 +24,7 @@
 
   Version 1.2 (2020-05-20)
 
-  Last change 2022-09-08
+  Last change 2022-09-13
 
   ©2016-2022 František Milt
 
@@ -261,13 +261,12 @@ type
                                    TMemVector
 --------------------------------------------------------------------------------
 ===============================================================================}
-
 {===============================================================================
     TMemVector - class declaration
 ===============================================================================}
 type
   TMemVector = class(TCustomListObject)
-  private
+  protected
     fItemSize:          TMemSize;
     fOwnsMemory:        Boolean;
     fMemory:            Pointer;
@@ -277,8 +276,7 @@ type
     fChanged:           Boolean;
     fOnChangeEvent:     TNotifyEvent;
     fOnChangeCallback:  TNotifyCallback;
-  protected
-    fTempItem:  Pointer;
+    fTempItem:          Pointer;
     // getters, setters
     Function GetItemPtr(Index: Integer): Pointer; virtual;
     procedure SetItemPtr(Index: Integer; Value: Pointer); virtual;
@@ -356,11 +354,10 @@ type
                                  TIntegerVector
 --------------------------------------------------------------------------------
 ===============================================================================}
-
 {===============================================================================
     TIntegerVector - class declaration
 ===============================================================================}
-
+type
   TIntegerVector = class(TMemVector)
   protected
     Function GetItem(Index: Integer): Integer; virtual;
@@ -395,11 +392,9 @@ uses
                                    TMemVector
 --------------------------------------------------------------------------------
 ===============================================================================}
-
 {===============================================================================
     TMemVector - class implementation
 ===============================================================================}
-
 {-------------------------------------------------------------------------------
     TMemVector - protected methods
 -------------------------------------------------------------------------------}
@@ -607,8 +602,8 @@ fChanged := True;
 If (fUpdateCounter <= 0) then
   begin
     If Assigned(fOnChangeEvent) then
-      fOnChangeEvent(Self);
-    If Assigned(fOnChangeCallback) then
+      fOnChangeEvent(Self)
+    else If Assigned(fOnChangeCallback) then
       fOnChangeCallback(Self);
   end;
 end;
@@ -1124,11 +1119,9 @@ end;
                                  TIntegerVector
 --------------------------------------------------------------------------------
 ===============================================================================}
-
 {===============================================================================
     TIntegerVector - class implementation
-===============================================================================}
-
+===============================================================================} 
 {-------------------------------------------------------------------------------
     TIntegerVector - private methods
 -------------------------------------------------------------------------------}
