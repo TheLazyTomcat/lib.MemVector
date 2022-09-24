@@ -24,7 +24,7 @@
 
   Version 1.2 (2020-05-20)
 
-  Last change 2022-09-13
+  Last change 2022-09-24
 
   ©2016-2022 František Milt
 
@@ -233,7 +233,9 @@ end;
 unit MemVector;
 
 {$IFDEF FPC}
-  {$MODE Delphi}
+  {$MODE ObjFPC}
+  {$MODESWITCH ClassicProcVars+}
+  {$MODESWITCH DuplicateLocals+}
   {$DEFINE FPC_DisableWarns}
   {$MACRO ON}
 {$ENDIF}
